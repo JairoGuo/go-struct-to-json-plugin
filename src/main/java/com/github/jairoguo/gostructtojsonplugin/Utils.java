@@ -47,23 +47,6 @@ public class Utils {
         return new GsonBuilder().serializeNulls().setPrettyPrinting().create().toJson(map);
     }
 
-    private static String getJsonKeyName(String fieldName, String tagText) {
-        String jsonKey = fieldName;
-        if (tagText == null || tagText.isEmpty()) {
-            return jsonKey;
-        }
-        String regPattern = "[json]:\"([\\w\\d_,-\\.]+)\"";
-        Pattern pattern = Pattern.compile(regPattern);
-        Matcher matcher = pattern.matcher(tagText);
-        if (matcher.find()) {
-            String tmpKeyName = matcher.group(1).split(",")[0];
-            if (!Objects.equals(tmpKeyName, "-")) { // for now,don't omit any field
-                jsonKey = tmpKeyName;
-            }
-        }
-        return jsonKey;
-    }
-
     private static Map<String, Object> buildMap(GoStructType goStructType) {
         Map<String, Object> map = new LinkedHashMap<>();
 
@@ -82,21 +65,20 @@ public class Utils {
                     }
                 }
             } else {
-                String fieldName = field.getFieldDefinitionList().get(0).getIdentifier().getText();
-                String fieldTagText = field.getTagText();
+
                 GoTypeReferenceExpression typeRef = fieldType.getTypeReferenceExpression();
                 String fieldTypeStr = typeRef == null ? "NOTBASICTYPE" : typeRef.getText();
 
-                String jsonKey = getJsonKeyName(fieldName, fieldTagText);
-
+                String jsonKey = getFieldName(field);
+                if (jsonKey.equals("-")) {
+                    continue;
+                }
                 if (isBasicType(fieldTypeStr)) {
                     map.put(jsonKey, basicTypes.get(fieldTypeStr));
-                }
-                else if (fieldType instanceof GoStructType structType) {
+                } else if (fieldType instanceof GoStructType structType) {
                     Map<String, Object> tmpMap = buildMap(structType);
                     map.put(jsonKey, tmpMap);
-                }
-                else if (fieldType instanceof GoMapType mapType) {
+                } else if (fieldType instanceof GoMapType mapType) {
                     Map<String, Object> tmpMap = new HashMap<>();
                     String tmpValueType = getTypeText(Objects.requireNonNull(mapType.getValueType()));
                     if (isBasicType(tmpValueType)) {
@@ -154,23 +136,41 @@ public class Utils {
         return map;
     }
 
+    private static String getFieldName(GoFieldDeclaration field) {
+        String fieldName = field.getFieldDefinitionList().get(0).getIdentifier().getText();
+        var ret = "-";
 
-    static String getTypeText(GoType type) {
+        var tag = field.getTag();
+        if (tag != null) {
+            var jsonTagValue = tag.getValue("json");
+            if (jsonTagValue != null) {
+                var realTag = jsonTagValue.split(",")[0];
+                if (!realTag.isEmpty() && !realTag.equals("-")) {
+                    ret = realTag;
+                }
+            }
+        } else {
+            ret = fieldName;
+        }
+        return ret;
+    }
+
+    private static String getTypeText(GoType type) {
         return type.getText();
     }
 
 
-    static GoStructType getStructType(GoType goType) {
+    private static GoStructType getStructType(GoType goType) {
         GoTypeReferenceExpression typeRef = goType.getTypeReferenceExpression();
         return getStruct(typeRef);
     }
 
-    static GoStructType getStructType(GoAnonymousFieldDefinition anonymous) {
+    private static GoStructType getStructType(GoAnonymousFieldDefinition anonymous) {
         GoTypeReferenceExpression typeRef = anonymous.getTypeReferenceExpression();
         return getStruct(typeRef);
     }
 
-    static GoStructType getStruct(GoTypeReferenceExpression typeRef) {
+    private static GoStructType getStruct(GoTypeReferenceExpression typeRef) {
         PsiElement resolve = typeRef != null ? typeRef.resolve() : null;
         if (resolve instanceof GoTypeSpec typeSpec) {
             GoType type = typeSpec.getSpecType().getType();
