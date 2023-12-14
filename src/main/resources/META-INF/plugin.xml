@@ -1,18 +1,22 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.jairoguo.gostructtojsonplugin</id>
-    <name>go-struct-to-json-plugin Template</name>
+    <name>Go Struct To JSON</name>
     <vendor>jairoguo</vendor>
 
     <depends>com.intellij.modules.platform</depends>
-
-    <resource-bundle>messages.MyBundle</resource-bundle>
+    <depends>org.jetbrains.plugins.go</depends>
+    <depends>com.intellij.modules.goland</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.jairoguo.gostructtojsonplugin.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
+        <notificationGroup displayType="BALLOON" id="CopyStructJson.NotificationGroup"  />
     </extensions>
 
-    <applicationListeners>
-        <listener class="com.github.jairoguo.gostructtojsonplugin.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
-    </applicationListeners>
+    <actions>
+        <action id="com.github.jairoguo.gostructtojsonplugin.copyGoStructJsonAction"
+                class="com.github.jairoguo.gostructtojsonplugin.CopyStructJsonAction" text="Copy Struct JSON"
+                description="Convert go struct to JSON and copy it to the clipboard">
+            <add-to-group group-id="Copy.Paste.Special" anchor="after" relative-to-action="com.github.jairoguo.gostructtojsonplugin.copyGoStructJsonAction"/>
+        </action>
+    </actions>
 </idea-plugin>
