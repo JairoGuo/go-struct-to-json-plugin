@@ -8,6 +8,12 @@
     <depends>org.jetbrains.plugins.go</depends>
     <depends>com.intellij.modules.goland</depends>
 
+    <description>
+        <![CDATA[
+            Convert GO struct to JSON and copy to clipboard.
+        ]]>
+    </description>
+
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup displayType="BALLOON" id="CopyStructJson.NotificationGroup"  />
     </extensions>

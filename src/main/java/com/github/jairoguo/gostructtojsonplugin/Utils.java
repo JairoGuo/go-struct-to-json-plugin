@@ -74,7 +74,12 @@ public class Utils {
                     continue;
                 }
                 if (isBasicType(fieldTypeStr)) {
-                    map.put(jsonKey, basicTypes.get(fieldTypeStr));
+                    String stringType = getFieldType(field);
+                    if (!stringType.isEmpty()) {
+                        map.put(jsonKey, basicTypes.get(stringType));
+                    }else {
+                        map.put(jsonKey, basicTypes.get(fieldTypeStr));
+                    }
                 } else if (fieldType instanceof GoStructType structType) {
                     Map<String, Object> tmpMap = buildMap(structType);
                     map.put(jsonKey, tmpMap);
@@ -100,7 +105,21 @@ public class Utils {
                     } else if (arrayOrSliceType.getType() instanceof GoStructType structType) {
                         Map<String, Object> tmpMap = buildMap(structType);
                         tmpList.add(tmpMap);
-                    } else {
+                    } else if (arrayOrSliceType.getType() instanceof GoPointerType pointerType) {
+                        String typeText = getTypeText(pointerType.getType());
+                        if (isBasicType(typeText)) {
+                            map.put(jsonKey, basicTypes.get(typeText));
+                        } else if (pointerType.getType() instanceof GoStructType structType) {
+                            Map<String, Object> tmpMap = buildMap(structType);
+                            map.put(jsonKey, tmpMap);
+                        } else {
+                            GoStructType structTypeOfPoint = getStructType(pointerType.getType());
+                            Map<String, Object> tmpMap = buildMap(structTypeOfPoint);
+                            tmpList.add(tmpMap);
+
+                        }
+                    }
+                    else {
                         GoStructType structType = getStructType(arrayOrSliceType.getType());
                         if (structType != null) {
                             Map<String, Object> tmpMap = buildMap(structType);
@@ -151,6 +170,29 @@ public class Utils {
             }
         } else {
             ret = fieldName;
+        }
+        return ret;
+    }
+
+    private static String getFieldType(GoFieldDeclaration field) {
+        var ret = "";
+
+        var fieldTag = field.getTag();
+        if (fieldTag != null) {
+            var jsonTagValue = fieldTag.getValue("json");
+            if (jsonTagValue != null) {
+                var tags = jsonTagValue.split(",");
+                if (tags.length >= 2) {
+                    for (var tag : tags) {
+                        if (!tag.isEmpty() && "string".equals(tag)) {
+                            ret = tag;
+
+                        }
+                    }
+
+                }
+
+            }
         }
         return ret;
     }
