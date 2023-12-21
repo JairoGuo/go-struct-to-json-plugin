@@ -6,14 +6,12 @@ import com.intellij.psi.PsiElement;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 
 
 public class Utils {
 
     private static final Map<String, Object> basicTypes = new HashMap<>();
-    private static final String STRUCT_TYPE = "STRUCT_TYPE";
 
     static {
         basicTypes.put("bool", false);
@@ -66,90 +64,13 @@ public class Utils {
                 }
             } else {
 
-                GoTypeReferenceExpression typeRef = fieldType.getTypeReferenceExpression();
-                String fieldTypeStr = typeRef == null ? "NOTBASICTYPE" : typeRef.getText();
-
                 String jsonKey = getFieldName(field);
                 if (jsonKey.equals("-")) {
                     continue;
                 }
-                if (isBasicType(fieldTypeStr)) {
-                    String stringType = getFieldType(field);
-                    if (!stringType.isEmpty()) {
-                        map.put(jsonKey, basicTypes.get(stringType));
-                    }else {
-                        map.put(jsonKey, basicTypes.get(fieldTypeStr));
-                    }
-                } else if (fieldType instanceof GoStructType structType) {
-                    Map<String, Object> tmpMap = buildMap(structType);
-                    map.put(jsonKey, tmpMap);
-                } else if (fieldType instanceof GoMapType mapType) {
-                    Map<String, Object> tmpMap = new HashMap<>();
-                    String tmpValueType = getTypeText(Objects.requireNonNull(mapType.getValueType()));
-                    if (isBasicType(tmpValueType)) {
-                        tmpMap.put("key", basicTypes.get(tmpValueType));
-                    } else {
-                        GoStructType structType = getStructType(mapType.getValueType());
-                        if (structType != null) {
-                            Map<String, Object> valueMap = buildMap(structType);
-                            tmpMap.put("key", valueMap);
-                        }
-                    }
-                    map.put(jsonKey, tmpMap);
-                } else if (fieldType instanceof GoArrayOrSliceType arrayOrSliceType) {
-                    ArrayList<Object> tmpList = new ArrayList<>();
-                    String tmpStr = getTypeText(arrayOrSliceType.getType());
-                    if (isBasicType(tmpStr)) {
-                        tmpList.add(basicTypes.get(tmpStr));
+                Object typeValue = getFieldTypeValue(field, fieldType);
+                map.put(jsonKey, typeValue);
 
-                    } else if (arrayOrSliceType.getType() instanceof GoStructType structType) {
-                        Map<String, Object> tmpMap = buildMap(structType);
-                        tmpList.add(tmpMap);
-                    } else if (arrayOrSliceType.getType() instanceof GoPointerType pointerType) {
-                        String typeText = getTypeText(pointerType.getType());
-                        if (isBasicType(typeText)) {
-                            map.put(jsonKey, basicTypes.get(typeText));
-                        } else if (pointerType.getType() instanceof GoStructType structType) {
-                            Map<String, Object> tmpMap = buildMap(structType);
-                            map.put(jsonKey, tmpMap);
-                        } else {
-                            GoStructType structTypeOfPoint = getStructType(pointerType.getType());
-                            Map<String, Object> tmpMap = buildMap(structTypeOfPoint);
-                            tmpList.add(tmpMap);
-
-                        }
-                    }
-                    else {
-                        GoStructType structType = getStructType(arrayOrSliceType.getType());
-                        if (structType != null) {
-                            Map<String, Object> tmpMap = buildMap(structType);
-                            tmpList.add(tmpMap);
-                        }
-                    }
-                    map.put(jsonKey, tmpList);
-                } else if (fieldType instanceof GoPointerType pointerType) {
-                    String typeText = getTypeText(pointerType.getType());
-                    if (isBasicType(typeText)) {
-                        map.put(jsonKey, basicTypes.get(typeText));
-                    } else if (pointerType.getType() instanceof GoStructType structType) {
-                        Map<String, Object> tmpMap = buildMap(structType);
-                        map.put(jsonKey, tmpMap);
-                    } else {
-                        GoStructType structTypeOfPoint = getStructType(pointerType.getType());
-                        Map<String, Object> tmpMap = buildMap(structTypeOfPoint);
-                        map.put(jsonKey, tmpMap);
-                    }
-
-                } else if (fieldType instanceof GoInterfaceType) {
-                    map.put(jsonKey, new HashMap<>());
-                } else {
-                    GoStructType structType = getStructType(fieldType);
-                    if (structType != null) {
-                        Map<String, Object> tmpMap = buildMap(structType);
-                        map.put(jsonKey, tmpMap);
-                    }
-
-                }
             }
         }
         return map;
@@ -158,6 +79,12 @@ public class Utils {
     private static String getFieldName(GoFieldDeclaration field) {
         String fieldName = field.getFieldDefinitionList().get(0).getIdentifier().getText();
         var ret = "-";
+
+        char c = fieldName.charAt(0);
+        if (!Character.isUpperCase(c)) {
+            return ret;
+        }
+
 
         var tag = field.getTag();
         if (tag != null) {
@@ -183,12 +110,7 @@ public class Utils {
             if (jsonTagValue != null) {
                 var tags = jsonTagValue.split(",");
                 if (tags.length >= 2) {
-                    for (var tag : tags) {
-                        if (!tag.isEmpty() && "string".equals(tag)) {
-                            ret = tag;
-
-                        }
-                    }
+                    return Arrays.stream(tags).filter(tag -> !tag.isEmpty() && "string".equals(tag)).findFirst().orElse("");
 
                 }
 
@@ -198,7 +120,7 @@ public class Utils {
     }
 
     private static String getTypeText(GoType type) {
-        return type.getText();
+        return type == null ? "NOTBASICTYPE" : type.getText();
     }
 
 
@@ -222,6 +144,36 @@ public class Utils {
         }
 
         return null;
+    }
+
+    private static Object getFieldTypeValue(GoFieldDeclaration field, GoType type) {
+
+        Object value = null;
+        assert type != null;
+        String typeText = getTypeText(type);
+
+        if (isBasicType(typeText)) {
+            String stringType = getFieldType(field);
+            if (!stringType.isEmpty()) {
+                value = basicTypes.get(stringType);
+            } else {
+                value = basicTypes.get(typeText);
+            }
+        }
+        if (type instanceof GoStructType structType) {
+            value = buildMap(structType);
+        } else if (type instanceof GoPointerType pointerType) {
+            value = getFieldTypeValue(field, pointerType.getType());
+        } else if (type instanceof GoArrayOrSliceType arrayOrSliceType) {
+            value = Collections.singletonList(getFieldTypeValue(field, arrayOrSliceType.getType()));
+        } else {
+            GoStructType structType = getStructType(type);
+            if (structType != null) {
+                value = buildMap(structType);
+            }
+        }
+        return value;
+
     }
 
     private Utils() {
