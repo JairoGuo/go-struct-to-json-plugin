@@ -159,8 +159,7 @@ public class Utils {
             } else {
                 value = basicTypes.get(typeText);
             }
-        }
-        if (type instanceof GoStructType structType) {
+        } else if (type instanceof GoStructType structType) {
             value = buildMap(structType);
         } else if (type instanceof GoPointerType pointerType) {
             value = getFieldTypeValue(field, pointerType.getType());
