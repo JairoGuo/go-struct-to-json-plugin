@@ -94,6 +94,8 @@ public class Utils {
                 if (!realTag.isEmpty() && !realTag.equals("-")) {
                     ret = realTag;
                 }
+            } else {
+                ret = fieldName;
             }
         } else {
             ret = fieldName;
